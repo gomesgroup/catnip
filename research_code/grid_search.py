@@ -30,9 +30,9 @@ if __name__ == "__main__":
         for depth in tqdm(depths):
             ranker = CatBoostRanker(iterations=iteration, depth=depth, loss_function='YetiRank')
             ranker.fit(dataset.drop(columns=['node 2', 'hit', 'query']), dataset['hit'], group_id=dataset['query'])
-            ranker.save_model(f'../backend/scoring_formula_{iteration}_{depth}.cb')
+            ranker.save_model(f'for_backend/scoring_formula_{iteration}_{depth}.cb')
 
-            test_metrics, _ = utils.get_score(
+            test_metrics, _, _ = utils.get_score(
                 test, interactions, as_table, pca, utils.get_formula(ranker), mode='evaluation')
             test_metrics -= baseline_metrics
             test_metrics['iterations'] = iteration

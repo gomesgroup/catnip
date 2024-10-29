@@ -11,7 +11,7 @@ if __name__ == "__main__":
 
     pca = utils.get_initial_pca(train, path='final_plots/pca_plot_')
 
-    ranker = CatBoostRanker().load_model('../backend/scoring_formula_50_2.cb')
+    ranker = CatBoostRanker().load_model('for_backend/scoring_formula_50_2.cb')
     test_metrics, predictions, fh = utils.get_score(
         test, interactions, as_table, pca, utils.get_formula(ranker), mode='evaluation')
     predictions.to_csv(

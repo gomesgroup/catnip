@@ -1,0 +1,11 @@
+Substrate ID,SMILES,sasa_area,sasa_volume,disp_area,disp_volume,disp_p_int,disp_p_max,disp_p_min,ip,ea,homo,lumo,electrophilicity,nucleophilicity,electrofugality,nucleofugality,dipole_x,dipole_y,dipole_z,mass,radius,charge
+1,OC1=C(C([H])=O)C([C@H](C)C(C)=O)=C(C)C(O)=C1C,,,,,,,,,,,,,,,,,,,,,
+2,OC1=C(C(C)=O)C=C(C)C(O)=C1C,,,,,,,,,,,,,,,,,,,,,
+3,OC1=CC=CC=C1C([O-])=O,,,,,,,,,,,,,,,,,,,,,
+4,OC1=CC=C(CC([H])=O)C=C1,,,,,,,,,,,,,,,,,,,,,
+5,OC1=C(O)C=C(CC[NH3+])C=C1,,,,,,,,,,,,,,,,,,,,,
+6,[O-]C(C1=CN=C(CO)C=C1)=O,,,,,,,,,,,,,,,,,,,,,
+7,[O-]C(/C=C/C1=CC(OC)=CC(OC)=C1)=O,,,,,,,,,,,,,,,,,,,,,
+8,OC1=C(C)C(O)=C(C([H])=O)C(C)=C1,,,,,,,,,,,,,,,,,,,,,
+9,O=CC1=C(Br)C=C(OC)C(C)=C1OC,,,,,,,,,,,,,,,,,,,,,
+10,OC1=C(C)C([O-])=C(C(C)=O)C=C1,,,,,,,,,,,,,,,,,,,,,
