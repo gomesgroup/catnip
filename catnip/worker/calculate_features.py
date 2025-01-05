@@ -5,7 +5,7 @@ import autode
 from morfeus import SASA, XTB, Dispersion
 
 from rdkit import Chem
-import dimorphite_dl
+from dimorphite_dl import DimorphiteDL
 
 import json
 
@@ -33,12 +33,15 @@ class Substrate:
         self.features = {}
 
     def correct_ph(self, smiles, ph):
-        mol = dimorphite_dl.run(
-            smiles=smiles,
+        dimorphite_dl = DimorphiteDL(
             min_ph=ph,
             max_ph=ph,
-            return_as_list=True
-        )[0]
+            max_variants=1,
+            label_states=False,
+            pka_precision=1.0
+        )
+
+        mol = dimorphite_dl.protonate(smiles)[0]
         return mol
 
     def get_geometry_and_basic_features(self):
