@@ -9,6 +9,20 @@ https://catnip.cheme.cmu.edu
 Data to run the app (including trained model) is available at https://huggingface.co/gomesgroup/catnip/tree/main. Additional files to reproduce model training are available in the repository.
 
 ## How to run the code?
+### Setting up the environemnt
+```bash
+conda create -n catnip autode==1.4 xtb xtb-python rq=1.15 python=3.10 rdkit=2022.09.5 -c conda-forge
+conda activate catnip
+pip install morfeus-ml
+pip install joblib
+pip install dimorphite-dl
+
+git clone https://github.com/gomesgroup/catnip.git
+cd catnip
+export PYTHONPATH="catnip/worker"
+python research_code/batch_feature_calculation.py --input_csv data/subsrates_quick_test.csv --output_csv features.csv
+```
+
 ### Calculate MORFEUS features
 Run the following command, replacing the paths:
 ```bash
