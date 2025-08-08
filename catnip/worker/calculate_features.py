@@ -24,7 +24,7 @@ class Substrate:
             job.save_meta()
 
         self.config = {
-            "n_cores": 4,
+            "n_cores": 1,
             "method": "xTB",
         }
 

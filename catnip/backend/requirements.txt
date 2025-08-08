@@ -1,7 +1,7 @@
 fastapi
 uvicorn
-rq
+rq==1.13.0
 scikit-learn
 pandas<2.0.0
-numpy
+numpy<2.0.0
 catboost

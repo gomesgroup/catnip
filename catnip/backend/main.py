@@ -1,3 +1,4 @@
+import uuid
 import os
 import csv
 import json
@@ -10,11 +11,11 @@ from catboost import CatBoostRanker
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 import redis
-from rq import Queue
+from rq import Worker, Queue, Connection
 
 app = FastAPI()
 
@@ -69,12 +70,31 @@ class MoleculeData(BaseModel):
     data: str
 
 
+class EnzymeData(BaseModel):
+    sequence: str
+
+
+class CompatibilityData(BaseModel):
+    sequence: str
+    substrate: str
+
+
 @app.post("/submit")
 async def submit_data(molecule_data: MoleculeData):
     job = q.enqueue('calculate_features.run_calculations', molecule_data.data.split('.')[0], result_ttl=3600 * 24 * 7)
 
     job.meta['smiles_full'] = molecule_data.data
     job.meta['smiles'] = molecule_data.data.split('.')[0]
+    job.save_meta()
+
+    return {"run_id": job.id}
+
+
+@app.post("/submit-enzyme")
+async def submit_enzyme(enzyme_data: EnzymeData):
+    job = q.enqueue('process_enzyme.run_enzyme_analysis', enzyme_data.sequence, result_ttl=3600 * 24 * 7)
+
+    job.meta['sequence'] = enzyme_data.sequence
     job.save_meta()
 
     return {"run_id": job.id}
@@ -200,6 +220,11 @@ async def get_run_data(run_id: str):
     if not job:
         return {"error": "Run ID not found"}
 
+    output_data = process_job(job, run_id)
+    return output_data
+
+
+def process_job(job, run_id):
     if 'features' in job.meta:
         table = json.loads(job.meta['features']).items()
         table = list(table)
@@ -265,6 +290,74 @@ async def get_run_data(run_id: str):
     return output_data
 
 
+@app.get("/enzyme-run/{run_id}")
+async def get_enzyme_run_data(run_id: str):
+    job = q.fetch_job(run_id)
+
+    if not job:
+        return {"error": "Run ID not found"}
+
+    output_data = process_enzyme_job(job, run_id)
+    return output_data
+
+
+def process_enzyme_job(job, run_id):
+    output_data = {
+        "run_id": run_id,
+        "sequence": job.meta.get('sequence', ''),
+        "overall_status": "in_progress",
+        "status": [
+            {"name": "Step 1", "description": "Multiple Sequence Alignment",
+             "status": "pending"},
+            {"name": "Step 2", "description": "Initial retrieval",
+             "status": "pending"},
+            {"name": "Step 3", "description": "Reranking",
+             "status": "pending", "table": []},
+            {"name": "Step 4", "description": "Final results",
+             "status": "pending"},
+        ],
+        'substrates': [],
+    }
+
+    # Update status based on job meta
+    if "msa_completed" in job.meta:
+        output_data["status"][0]["status"] = "complete"
+        output_data["status"][0]["progress"] = 100
+
+        output_data["status"][1]["status"] = "in_progress"
+        output_data["status"][1]["progress"] = -1
+
+    if "retrieval_completed" in job.meta:
+        output_data["status"][1]["status"] = "complete"
+        output_data["status"][1]["progress"] = 100
+
+        if "retrieval_results" in job.meta:
+            output_data["status"][1]["table"] = job.meta["retrieval_results"]
+
+        output_data["status"][2]["status"] = "in_progress"
+        output_data["status"][2]["progress"] = -1
+
+    if "reranking_completed" in job.meta:
+        output_data["status"][2]["status"] = "complete"
+        output_data["status"][2]["progress"] = 100
+
+        if "reranking_results" in job.meta:
+            output_data["status"][2]["table"] = job.meta["reranking_results"]
+
+        output_data["status"][3]["status"] = "in_progress"
+        output_data["status"][3]["progress"] = -1
+
+    if "analysis_completed" in job.meta:
+        output_data["status"][3]["status"] = "complete"
+        output_data["status"][3]["progress"] = 100
+        output_data["overall_status"] = "done"
+
+        if "substrate_predictions" in job.meta:
+            output_data["substrates"] = job.meta["substrate_predictions"]
+
+    return output_data
+
+
 @app.get("/download/{run_id}/csv")
 async def download_csv(run_id: str):
     job = q.fetch_job(run_id)
@@ -272,18 +365,43 @@ async def download_csv(run_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Run ID not found")
 
-    if 'features' in job.meta:
-        table = json.loads(job.meta['features'])
-    else:
-        table = []
+    output_data = process_job(job, run_id)
+    if output_data['status'][3]['status'] != 'complete':
+        raise HTTPException(status_code=404, detail="Run not complete")
 
+    ranking = output_data['ranking']
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Feature', 'Value'])
-    for key, value in table.items():
-        writer.writerow([key, value])
+    writer.writerow(['Enzyme ID', 'Score', 'Enzyme Name', 'Organism', 'AA Sequence'])
+    for row in ranking:
+        writer.writerow([row['Enzyme ID'], row['Score'], row['Enzyme Name'], row['Organism'], row['AA Sequence']])
 
     output.seek(0)
 
     return Response(content=output.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": f"attachment; filename=run_{run_id}_features.csv"})
+
+
+@app.get("/download/enzyme/{run_id}/csv")
+async def download_enzyme_csv(run_id: str):
+    job = q.fetch_job(run_id)
+
+    if not job or "substrate_predictions" not in job.meta:
+        raise HTTPException(status_code=404, detail="Results not found")
+
+    predictions = job.meta["substrate_predictions"]
+
+    # Convert to DataFrame
+    df = pd.DataFrame(predictions)
+
+    # Create StringIO buffer
+    buffer = StringIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
+
+    # Return CSV as response
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=enzyme_substrates_{run_id}.csv"}
+    )
